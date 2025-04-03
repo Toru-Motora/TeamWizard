@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>プロジェクト管理</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+</head>
+
+<body>
+    <div class="container mt-4">
+        <h1 class="mb-4">プロジェクト一覧</h1>
+
+        <!-- 検索フォーム -->
+        <div class="mb-4">
+            <input id="search-input" type="text" class="form-control" placeholder="プロジェクト名またはキーワードで検索">
+        </div>
+
+        <!-- プロジェクト一覧 -->
+        <ul id="project-list" class="list-group">
+            {% for project in projects %}
+            <li class="list-group-item">
+                <h5><a href="{{ url_for('project_detail', project_id=loop.index0) }}">{{ project.name }}</a></h5>
+                <p><strong>詳細:</strong> {{ project.description }}</p>
+                <p><strong>顧客:</strong> {{ project.client }}</p>
+                <p><strong>期間:</strong> {{ project.duration }}</p>
+                <p><strong>必要スキル:</strong> {{ project.needed_skills | join(', ') }}</p>
+            </li>
+            {% endfor %}
+        </ul>
+    </div>
+
+    <script src="https://code.jquery.com/jquery-3.5.1.slim.min.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/bootstrap@4.5.2/dist/js/bootstrap.bundle.min.js"></script>
+
+    <script>
+        // 検索機能
+        document.getElementById('search-input').addEventListener('keyup', function() {
+            const filter = this.value.toLowerCase();
+            const projects = document.querySelectorAll('#project-list .list-group-item');
+
+            projects.forEach(function(project) {
+                const name = project.querySelector('h5 a').textContent.toLowerCase();
+                const description = project.querySelector('p').textContent.toLowerCase();
+
+                if (name.includes(filter) || description.includes(filter)) {
+                    project.style.display = '';
+                } else {
+                    project.style.display = 'none';
+                }
+            });
+        });
+    </script>
+</body>
+
+</html>

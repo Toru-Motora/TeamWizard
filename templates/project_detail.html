@@ -1,0 +1,264 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>{{ project.name }}の詳細</title>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.5.2/css/bootstrap.min.css">
+    <link rel="stylesheet" href="{{ url_for('static', filename='styles.css') }}">
+    <script src="https://d3js.org/d3.v7.min.js"></script>
+    <style>
+        .candidate-checkbox {
+            display: none;
+        }
+        .selected {
+            background-color: #d1ecf1 !important;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container mt-4">
+        <a href="{{ url_for('index') }}" class="btn btn-secondary mb-4">戻る</a>
+
+        <h1 class="mb-4">{{ project.name }}</h1>
+        <div class="card mb-4">
+            <div class="card-body">
+                <p><strong>プロジェクト内容:</strong> {{ project.description }}</p>
+                <p><strong>顧客:</strong> {{ project.client }}</p>
+                <p><strong>期間:</strong> {{ project.duration }}</p>
+                <p><strong>必要スキル:</strong> {{ project.needed_skills | join(', ') }}</p>
+            </div>
+        </div>
+
+        <h2 class="mb-3">プロジェクトメンバー</h2>
+        <div id="org-chart" class="mb-4"></div>
+
+        <h2 class="mb-3">メンバー一覧</h2>
+        <ul id="member-list" class="list-group mb-4"></ul>
+
+        <h2 class="mb-3">人材検索</h2>
+        <form id="search-form" class="mb-4">
+            <div class="form-group">
+                <textarea id="search-input" class="form-control" placeholder="案件に適切な人材を教えて..." rows="4"></textarea>
+            </div>
+            <button type="submit" class="btn btn-primary">検索</button>
+        </form>
+
+        <div id="result-container" class="card" style="display: none;">
+            <div class="card-body">
+                <h3>候補者リスト</h3>
+                <ul id="candidate-list" class="list-group mb-3"></ul>
+                <button id="assign-button" class="btn btn-success" style="display: none;">アサイン</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const projectName = '{{ project.name }}';
+        const initialTeam = {{ project.team | tojson }};
+        const candidates = [
+            { name: "田中太郎", role: "エンジニア", filled: false },
+            { name: "佐藤花子", role: "デザイナー", filled: false },
+            { name: "鈴木次郎", role: "プロジェクトマネージャー", filled: false },
+            { name: "山本太一", role: "テスター", filled: false },
+            { name: "伊藤次郎", role: "データサイエンティスト", filled: false },
+            { name: "中村真理", role: "システムアナリスト", filled: false },
+            { name: "小林一郎", role: "マーケティング", filled: false },
+            { name: "高橋健", role: "セールスマネージャー", filled: false },
+            { name: "遠藤光", role: "リードエンジニア", filled: false },
+            { name: "藤田花", role: "開発リーダー", filled: false },
+            { name: "井上優", role: "エンジニア", filled: false },
+            { name: "吉田春菜", role: "デザイナー", filled: false },
+            { name: "清水亮", role: "プロジェクトマネージャー", filled: false },
+            { name: "松本真", role: "テスター", filled: false },
+            { name: "森田健太", role: "データサイエンティスト", filled: false },
+            { name: "石田なお", role: "システムアナリスト", filled: false },
+            { name: "橋本拓也", role: "マーケティング", filled: false },
+            { name: "斎藤紗英", role: "セールスマネージャー", filled: false },
+            { name: "岡田和也", role: "リードエンジニア", filled: false },
+            { name: "杉内裕子", role: "開発リーダー", filled: false }
+        ];
+
+        const width = 600;
+        const height = 400;
+        const svg = d3.select("#org-chart").append("svg")
+            .attr("width", width)
+            .attr("height", height)
+            .append("g")
+            .attr("transform", "translate(50,50)");
+
+        function createInitialChartData(team) {
+            const chartData = {
+                name: projectName,
+                children: []
+            };
+
+            team.forEach(member => {
+                if (member.role === "チームリーダー") {
+                    chartData.children.push({
+                        name: member.name,
+                        role: member.role,
+                        filled: member.filled,
+                        children: []
+                    });
+                } else {
+                    const leaderNode = chartData.children.find(child => child.role === "チームリーダー");
+                    if (leaderNode) {
+                        leaderNode.children.push({
+                            name: member.name,
+                            role: member.role,
+                            filled: member.filled
+                        });
+                    }
+                }
+            });
+
+            return chartData;
+        }
+
+        const initialChartData = createInitialChartData(initialTeam);
+
+        function drawOrgChart(svg, data) {
+            const root = d3.hierarchy(data);
+            const treeLayout = d3.tree().size([height - 100, width - 150]);
+            treeLayout(root);
+
+            svg.selectAll('.link')
+                .data(root.links())
+                .enter()
+                .append('line')
+                .attr('class', 'link')
+                .attr('x1', d => d.source.y)
+                .attr('y1', d => d.source.x)
+                .attr('x2', d => d.target.y)
+                .attr('y2', d => d.target.x);
+
+            const nodes = svg.selectAll('.node')
+                .data(root.descendants())
+                .enter()
+                .append('g')
+                .attr('class', d => `node ${d.data.filled ? 'filled' : 'unfilled'}`)
+                .attr('transform', d => `translate(${d.y},${d.x})`);
+
+            nodes.append('circle')
+                .attr('r', 10)
+                .style('fill', d => d.data.filled ? 'lightgreen' : 'lightgray');
+
+            nodes.append('text')
+                .attr('y', 35)
+                .attr('text-anchor', 'middle')
+                .text(d => `${d.data.name} (${d.data.role})`);
+        }
+
+        function updateMemberList(team) {
+            const memberList = document.getElementById("member-list");
+            memberList.innerHTML = '';
+
+            team.forEach(member => {
+                const li = document.createElement("li");
+                li.className = `list-group-item ${member.filled ? 'list-group-item-success' : ''}`;
+                li.textContent = `${member.name} - ${member.role}`;
+                memberList.appendChild(li);
+            });
+        }
+
+        function handleSearchFormSubmit(e) {
+            e.preventDefault();
+            const searchQuery = document.getElementById("search-input").value;
+
+            document.getElementById("result-container").style.display = "block";
+            document.getElementById("candidate-list").innerHTML = "";
+
+            const filteredCandidates = candidates.slice(0, 10);
+            filteredCandidates.forEach(candidate => {
+                const li = document.createElement("li");
+                li.className = "list-group-item candidate-item";
+                li.innerHTML = `<input type="checkbox" class="candidate-checkbox" value='${JSON.stringify(candidate)}'> ${candidate.name} - ${candidate.role}
+                    <select class="assign-role ml-2">
+                        <option value="メンバー">メンバー</option>
+                        <option value="リーダー">リーダー</option>
+                    </select>`;
+                document.getElementById("candidate-list").appendChild(li);
+
+                li.addEventListener('click', function () {
+                    const checkbox = li.querySelector(".candidate-checkbox");
+                    checkbox.checked = !checkbox.checked;
+                    li.classList.toggle('selected', checkbox.checked);
+                });
+            });
+
+            document.getElementById("assign-button").style.display = filteredCandidates.length > 0 ? "block" : "none";
+        }
+
+        function handleAssignButtonClick() {
+            const checkboxes = document.querySelectorAll(".candidate-checkbox");
+
+            checkboxes.forEach(checkbox => {
+                const candidate = JSON.parse(checkbox.value);
+                const selectRole = checkbox.parentElement.querySelector(".assign-role").value;
+                const isAlreadyAssigned = initialTeam.some(member => member.name === candidate.name && member.role === selectRole);
+
+                if (checkbox.checked && !isAlreadyAssigned) {
+                    assignMember(candidate, selectRole);
+                } else if (!checkbox.checked && isAlreadyAssigned) {
+                    removeMember(candidate, selectRole);
+                }
+            });
+
+            updateMemberList(initialTeam);
+            updateOrgChart();
+        }
+
+        function assignMember(candidate, role) {
+            if (role === "リーダー") {
+                initialChartData.children.push({
+                    name: candidate.name,
+                    role: role,
+                    filled: true,
+                    children: []
+                });
+            } else {
+                const leaderNode = initialChartData.children.find(child => child.role === "チームリーダー");
+                if (leaderNode) {
+                    leaderNode.children.push({
+                        name: candidate.name,
+                        role: role,
+                        filled: true
+                    });
+                }
+            }
+            initialTeam.push({ ...candidate, role: role, filled: true });
+        }
+
+        function removeMember(candidate, role) {
+            const index = initialTeam.findIndex(member => member.name === candidate.name && member.role === role);
+            if (index > -1) {
+                initialTeam.splice(index, 1);
+            }
+
+            if (role === "リーダー") {
+                initialChartData.children = initialChartData.children.filter(child => child.name !== candidate.name);
+            } else {
+                const leaderNode = initialChartData.children.find(child => child.role === "チームリーダー");
+                if (leaderNode) {
+                    leaderNode.children = leaderNode.children.filter(child => child.name !== candidate.name);
+                }
+            }
+        }
+
+        function updateOrgChart() {
+            svg.selectAll("*").remove();
+            drawOrgChart(svg, initialChartData);
+        }
+
+        document.getElementById("search-form").addEventListener("submit", handleSearchFormSubmit);
+        document.getElementById("assign-button").addEventListener("click", handleAssignButtonClick);
+
+        drawOrgChart(svg, initialChartData);
+        updateMemberList(initialTeam);
+    </script>
+</body>
+
+</html>
